@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { fetchAllSubjects, type Subject } from '@/services/subjectService';
 import {
   Dialog,
   DialogContent,
@@ -91,6 +92,7 @@ const FacultyManagement: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
 
   const [facultySubjects, setFacultySubjects] = useState<FacultySubject[]>([]);
+  const [availableSubjects, setAvailableSubjects] = useState<Subject[]>([]);
   
   // Timetable management state
   const [timetableFile, setTimetableFile] = useState<File | null>(null);
@@ -135,7 +137,22 @@ const FacultyManagement: React.FC = () => {
 
   useEffect(() => {
     fetchFaculty();
+    loadAvailableSubjects();
   }, []);
+
+  const loadAvailableSubjects = async () => {
+    try {
+      const subjects = await fetchAllSubjects();
+      setAvailableSubjects(subjects);
+    } catch (error) {
+      console.error('Error loading subjects:', error);
+      toast({
+        title: 'Warning',
+        description: 'Could not load subjects from database.',
+        variant: 'destructive'
+      });
+    }
+  };
 
   useEffect(() => {
     if (selectedFaculty) {
@@ -267,7 +284,44 @@ const FacultyManagement: React.FC = () => {
     try {
       setLoading(true);
 
-      // Create faculty record
+      // Generate default password from user_id
+      // Format: if user_id is "fac_dit009", password is "dit@009"
+      const generateDefaultPassword = (userId: string): string => {
+        // Remove "fac_" prefix if present
+        const cleanId = userId.toLowerCase().replace(/^fac_/, '');
+        
+        // Extract department code and number
+        // Example: "dit009" -> "dit" and "009"
+        const match = cleanId.match(/^([a-z]+)(\d+)$/);
+        
+        if (match) {
+          const [, dept, num] = match;
+          return `${dept}@${num}`;
+        }
+        
+        // Fallback: if pattern doesn't match, use the whole cleanId
+        return `${cleanId}@123`;
+      };
+
+      const defaultPassword = generateDefaultPassword(newFacultyForm.user_id);
+
+      // Check if faculty already exists
+      const { data: existingFaculty } = await supabase
+        .from('faculty')
+        .select('user_id')
+        .eq('user_id', newFacultyForm.user_id)
+        .single();
+
+      if (existingFaculty) {
+        toast({
+          title: 'Error',
+          description: 'Faculty with this user ID already exists.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Create faculty record (without auth link for now)
       const { data: facultyData, error: facultyError } = await supabase
         .from('faculty')
         .insert([{
@@ -285,9 +339,40 @@ const FacultyManagement: React.FC = () => {
 
       if (facultyError) throw facultyError;
 
+      // Create auth account for the faculty member
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: newFacultyForm.email,
+        password: defaultPassword,
+        options: {
+          data: {
+            role: 'faculty',
+            user_id: newFacultyForm.user_id,
+            fname: newFacultyForm.fname,
+            lname: newFacultyForm.lname,
+          }
+        }
+      });
+
+      if (signUpError) {
+        console.error('Auth signup error:', signUpError);
+        toast({
+          title: 'Warning',
+          description: `Faculty record created, but auth account creation failed: ${signUpError.message}. Faculty can sign up manually.`,
+          variant: 'default',
+          duration: 10000,
+        });
+      } else if (signUpData.user) {
+        // Link the auth account to faculty record
+        await supabase
+          .from('faculty')
+          .update({ id: signUpData.user.id })
+          .eq('user_id', newFacultyForm.user_id);
+      }
+
       toast({
         title: 'Success',
-        description: `Faculty ${newFacultyForm.fname} ${newFacultyForm.lname} created successfully.`,
+        description: `Faculty ${newFacultyForm.fname} ${newFacultyForm.lname} created successfully.\n\nLogin Credentials:\nEmail: ${newFacultyForm.email}\nPassword: ${defaultPassword}\n\nPlease share these credentials with the faculty member.`,
+        duration: 15000,
       });
 
       // Reset form
@@ -317,10 +402,23 @@ const FacultyManagement: React.FC = () => {
   };
 
   const handleAddSubject = async () => {
-    if (!selectedFaculty || !newSubjectForm.subject_name || !newSubjectForm.subject_code || !newSubjectForm.department) {
+    if (!selectedFaculty || !newSubjectForm.subject_name || !newSubjectForm.subject_code) {
       toast({
         title: 'Missing Information',
-        description: 'Please fill in all subject fields.',
+        description: 'Please select a subject from the dropdown.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Check if subject already assigned
+    const alreadyAssigned = facultySubjects.some(
+      s => s.subject_code === newSubjectForm.subject_code
+    );
+    if (alreadyAssigned) {
+      toast({
+        title: 'Duplicate Subject',
+        description: 'This subject is already assigned to this faculty.',
         variant: 'destructive',
       });
       return;
@@ -871,37 +969,56 @@ const FacultyManagement: React.FC = () => {
                   <TabsContent value="subjects" className="space-y-4">
                     <Card>
                       <CardHeader>
-                        <CardTitle className="text-lg">Add Subject</CardTitle>
+                        <CardTitle className="text-lg">Assign Subject to Faculty</CardTitle>
+                        <CardDescription className="text-xs text-gray-600 mt-1">
+                          Select from centralized subjects. To add new subjects, go to Subject Management.
+                        </CardDescription>
                       </CardHeader>
                       <CardContent>
-                        <div className="grid grid-cols-3 gap-4">
-                          <Input
-                            placeholder="Subject Name"
-                            value={newSubjectForm.subject_name}
-                            onChange={(e) => setNewSubjectForm({ ...newSubjectForm, subject_name: e.target.value })}
-                          />
-                          <Input
-                            placeholder="Subject Code"
-                            value={newSubjectForm.subject_code}
-                            onChange={(e) => setNewSubjectForm({ ...newSubjectForm, subject_code: e.target.value })}
-                          />
+                        <div className="space-y-4">
                           <Select
-                            value={newSubjectForm.department}
-                            onValueChange={(value) => setNewSubjectForm({ ...newSubjectForm, department: value })}
+                            value={newSubjectForm.subject_code}
+                            onValueChange={(value) => {
+                              const selected = availableSubjects.find(s => s.code === value);
+                              if (selected) {
+                                setNewSubjectForm({
+                                  subject_name: selected.name,
+                                  subject_code: selected.code,
+                                  department: selected.department || ''
+                                });
+                              }
+                            }}
                           >
                             <SelectTrigger>
-                              <SelectValue placeholder="Department" />
+                              <SelectValue placeholder="Select Subject" />
                             </SelectTrigger>
                             <SelectContent>
-                              {departments.map((dept) => (
-                                <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-                              ))}
+                              {availableSubjects.length === 0 ? (
+                                <SelectItem value="none" disabled>
+                                  No subjects available. Add subjects in Subject Management.
+                                </SelectItem>
+                              ) : (
+                                availableSubjects.map((subject) => (
+                                  <SelectItem key={subject.id} value={subject.code}>
+                                    {subject.name} ({subject.code}) - {subject.department}
+                                  </SelectItem>
+                                ))
+                              )}
                             </SelectContent>
                           </Select>
+                          {newSubjectForm.subject_name && (
+                            <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                              <p className="text-sm text-blue-900">
+                                <strong>Selected:</strong> {newSubjectForm.subject_name} ({newSubjectForm.subject_code})
+                                <br />
+                                <strong>Department:</strong> {newSubjectForm.department}
+                              </p>
+                            </div>
+                          )}
                         </div>
-                        <Button onClick={handleAddSubject} className="mt-4">
+                        <Button onClick={handleAddSubject} className="mt-4" disabled={!newSubjectForm.subject_code}>
                           <Plus className="h-4 w-4 mr-2" />
-                          Add Subject
+                          Assign Subject to Faculty
                         </Button>
                       </CardContent>
                     </Card>

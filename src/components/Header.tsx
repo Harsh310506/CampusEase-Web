@@ -39,33 +39,35 @@ const Header = () => {
             <Link to="/schedule" className="px-3 py-2 text-sm font-medium hover:text-campusblue-500 rounded-md hover:bg-campusblue-50 dark:hover:bg-campusblue-900/20 transition-colors">My Schedule</Link>
           )}
           
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="text-sm font-medium hover:text-campusblue-500 hover:bg-campusblue-50 dark:hover:bg-campusblue-900/20">
-                Services
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 bg-white dark:bg-gray-900">
-              <DropdownMenuItem asChild>
-                <Link to="/reports" className="flex items-center gap-2 hover:text-campusblue-500">
-                  <Flag className="h-4 w-4" />
-                  <span>Report System</span>
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/emergency" className="flex items-center gap-2">
-                  <Bell className="h-4 w-4 text-red-500" />
-                  <span className="text-red-500 font-medium">Emergency Alerts</span>
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/problems" className="flex items-center gap-2 hover:text-campusblue-500">
-                  <AlertCircle className="h-4 w-4" />
-                  <span>Problems</span>
-                </Link>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {userData?.role !== 'admin' && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="text-sm font-medium hover:text-campusblue-500 hover:bg-campusblue-50 dark:hover:bg-campusblue-900/20">
+                  Services
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 bg-white dark:bg-gray-900">
+                <DropdownMenuItem asChild>
+                  <Link to="/reports" className="flex items-center gap-2 hover:text-campusblue-500">
+                    <Flag className="h-4 w-4" />
+                    <span>Report System</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/emergency" className="flex items-center gap-2">
+                    <Bell className="h-4 w-4 text-red-500" />
+                    <span className="text-red-500 font-medium">Emergency Alerts</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/problems" className="flex items-center gap-2 hover:text-campusblue-500">
+                    <AlertCircle className="h-4 w-4" />
+                    <span>Problems</span>
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           
           <Link to="/resources" className="px-3 py-2 text-sm font-medium hover:text-campusblue-500 rounded-md hover:bg-campusblue-50 dark:hover:bg-campusblue-900/20 transition-colors">Resources</Link>
           <Link to="/events" className="px-3 py-2 text-sm font-medium hover:text-campusblue-500 rounded-md hover:bg-campusblue-50 dark:hover:bg-campusblue-900/20 transition-colors">Events</Link>
@@ -82,7 +84,16 @@ const Header = () => {
             <>
               <Link to="/class-management" className="px-3 py-2 text-sm font-medium hover:text-campusblue-500 rounded-md hover:bg-campusblue-50 dark:hover:bg-campusblue-900/20 transition-colors">Class Management</Link>
               <Link to="/faculty-management" className="px-3 py-2 text-sm font-medium hover:text-campusblue-500 rounded-md hover:bg-campusblue-50 dark:hover:bg-campusblue-900/20 transition-colors">Faculty Management</Link>
+              <Link to="/subject-management" className="px-3 py-2 text-sm font-medium hover:text-campusblue-500 rounded-md hover:bg-campusblue-50 dark:hover:bg-campusblue-900/20 transition-colors">Subject Management</Link>
+              <Link to="/faculty-class-assignment" className="px-3 py-2 text-sm font-medium hover:text-campusblue-500 rounded-md hover:bg-campusblue-50 dark:hover:bg-campusblue-900/20 transition-colors">Faculty Assignment</Link>
+              <Link to="/announcement-management" className="px-3 py-2 text-sm font-medium hover:text-campusblue-500 rounded-md hover:bg-campusblue-50 dark:hover:bg-campusblue-900/20 transition-colors">Announcements</Link>
               <Link to="/data-analysis" className="px-3 py-2 text-sm font-medium hover:text-campusblue-500 rounded-md hover:bg-campusblue-50 dark:hover:bg-campusblue-900/20 transition-colors">Data Analysis</Link>
+            </>
+          )}
+          {userData?.role === 'service_head' && (
+            <>
+              <Link to="/service-head-dashboard" className="px-3 py-2 text-sm font-medium hover:text-campusblue-500 rounded-md hover:bg-campusblue-50 dark:hover:bg-campusblue-900/20 transition-colors">Dashboard</Link>
+              <Link to="/report-configuration" className="px-3 py-2 text-sm font-medium hover:text-campusblue-500 rounded-md hover:bg-campusblue-50 dark:hover:bg-campusblue-900/20 transition-colors">Report Config</Link>
             </>
           )}
         </nav>

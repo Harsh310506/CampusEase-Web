@@ -34,6 +34,9 @@ const Login = () => {
     setLoading(true);
   
     try {
+      // Trim userId to remove any accidental whitespace
+      const trimmedUserId = userId.trim();
+      
       // Step 1: Check ID format and determine role
       let role = '';
       let tableName = '';
@@ -42,6 +45,7 @@ const Login = () => {
       const studentIdPattern = /^[2][0-5](dit|dce|dcs|it|ce|cs)\d{3}$/i;
       const facultyIdPattern = /^fac_(dit|dce|dcs|it|ce|cs)\d{3}$/i;
       const adminIdPattern = /^admin\d{3}$/i;
+      const serviceHeadIdPattern = /^serv_head$/i;
 
       const studentEmailPattern = (id: string) => new RegExp(`^${id}@charusat.edu.in$`, 'i');
       const facultyEmailPattern = (id: string) => new RegExp(`^${id}@charusat.ac.in$`, 'i');
@@ -53,17 +57,17 @@ const Login = () => {
         return `${studentId}@${year}`;
       };
 
-      if (studentIdPattern.test(userId)) {
+      if (studentIdPattern.test(trimmedUserId)) {
         // Handle STUDENT LOGIN with default password support
         role = 'student';
         
-        console.log('Student login attempt for user:', userId);
+        console.log('Student login attempt for user:', trimmedUserId);
         
         // First, check if student exists in student_records (added by admin)
         const { data: studentRecord, error: studentError } = await supabase
           .from('student_records')
           .select('*')
-          .eq('user_id', userId)
+          .eq('user_id', trimmedUserId)
           .single();
 
         console.log('Student record lookup result:', { studentRecord, studentError });
@@ -74,8 +78,8 @@ const Login = () => {
         }
 
         // Use email from student record or generate it
-        email = studentRecord.email || `${userId}@charusat.edu.in`;
-        const defaultPassword = generateDefaultPassword(userId);
+        email = studentRecord.email || `${trimmedUserId}@charusat.edu.in`;
+        const defaultPassword = generateDefaultPassword(trimmedUserId);
         
         console.log('Generated email:', email);
         console.log('Generated default password:', defaultPassword);
@@ -210,7 +214,7 @@ const Login = () => {
           role: 'student'
         });
 
-      } else if (facultyIdPattern.test(userId)) {
+      } else if (facultyIdPattern.test(trimmedUserId)) {
         // Handle FACULTY LOGIN (existing logic)
         tableName = 'faculty';
         role = 'faculty';
@@ -218,7 +222,7 @@ const Login = () => {
         const { data: userData, error: userError } = await supabase
           .from(tableName)
           .select('*')
-          .ilike('user_id', userId)
+          .ilike('user_id', trimmedUserId)
           .maybeSingle();
 
         if (!userData) {
@@ -251,7 +255,7 @@ const Login = () => {
           role: 'faculty'
         });
 
-      } else if (adminIdPattern.test(userId)) {
+      } else if (adminIdPattern.test(trimmedUserId)) {
         // Handle ADMIN LOGIN (existing logic)
         tableName = 'admin';
         role = 'admin';
@@ -259,7 +263,7 @@ const Login = () => {
         const { data: userData, error: userError } = await supabase
           .from(tableName)
           .select('*')
-          .ilike('user_id', userId)
+          .ilike('user_id', trimmedUserId)
           .maybeSingle();
 
         if (!userData) {
@@ -292,8 +296,54 @@ const Login = () => {
           role: 'admin'
         });
 
+      } else if (serviceHeadIdPattern.test(trimmedUserId)) {
+        // Handle SERVICE HEAD LOGIN
+        role = 'service_head';
+        
+        // Look up service head in users table
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('user_id', 'serv_head')
+          .eq('role', 'service_head')
+          .maybeSingle();
+
+        if (!userData) {
+          throw new Error("Service Head account not found. Please contact admin.");
+        }
+
+        email = userData.email;
+
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (authError) {
+          throw new Error("Invalid credentials");
+        }
+
+        setUserData({
+          id: userData.id,
+          user_id: userData.user_id,
+          fname: userData.fname,
+          lname: userData.lname,
+          email: userData.email,
+          profile_photo: userData.profile_photo,
+          course_taken: userData.course_taken,
+          mobile_num: userData.mobile_num,
+          address: userData.address,
+          dob: userData.dob,
+          emergency_contact: userData.emergency_contact,
+          role: 'service_head'
+        });
+
       } else {
-        throw new Error("Invalid ID format");
+        // Provide helpful error message based on what was entered
+        const helpMessage = trimmedUserId.toLowerCase().includes('serv') 
+          ? "Service Head ID should be exactly: serv_head" 
+          : "Invalid ID format. Please enter a valid Student, Faculty, Admin, or Service Head ID.";
+        throw new Error(helpMessage);
       }
   
       sessionStorage.setItem('isLoggedIn', 'true');
@@ -301,7 +351,13 @@ const Login = () => {
         title: "Login Successful",
         description: "Welcome back to CampusEase!",
       });
-      navigate("/Index");
+      
+      // Redirect based on role
+      if (role === 'service_head') {
+        navigate("/service-head-dashboard");
+      } else {
+        navigate("/Index");
+      }
   
     } catch (error: any) {
       toast({

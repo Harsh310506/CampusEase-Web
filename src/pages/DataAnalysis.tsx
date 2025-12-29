@@ -45,6 +45,7 @@ import {
   Award,
   MessageSquare,
   Share2,
+  BarChart3,
 } from 'lucide-react';
 
 ChartJS.register(
@@ -1201,17 +1202,260 @@ const DataAnalysis = () => {
           </TabsContent>
 
           <TabsContent value="problems">
-            <Card>
-              <CardHeader>
-                <CardTitle>Problems by Category</CardTitle>
-                <CardDescription>Reported issues breakdown</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-80">
-                  <Bar data={problemChartData} options={chartOptions} />
-                </div>
-              </CardContent>
-            </Card>
+            <div className="space-y-6">
+              {/* Problem Overview Stats */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <Card className="border-l-4 border-l-orange-500">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="p-3 bg-orange-100 rounded-lg">
+                        <AlertCircle className="h-6 w-6 text-orange-600" />
+                      </div>
+                      <Badge variant="secondary" className="text-xs">Total</Badge>
+                    </div>
+                    <div className="text-3xl font-bold text-gray-900">{stats.totalProblems}</div>
+                    <p className="text-sm text-gray-500 mt-1">Total Reports</p>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-l-4 border-l-yellow-500">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="p-3 bg-yellow-100 rounded-lg">
+                        <Clock className="h-6 w-6 text-yellow-600" />
+                      </div>
+                      <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-700">Pending</Badge>
+                    </div>
+                    <div className="text-3xl font-bold text-yellow-600">{stats.unresolvedProblems}</div>
+                    <p className="text-sm text-gray-500 mt-1">Unresolved</p>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-l-4 border-l-green-500">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="p-3 bg-green-100 rounded-lg">
+                        <CheckCircle2 className="h-6 w-6 text-green-600" />
+                      </div>
+                      <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">Completed</Badge>
+                    </div>
+                    <div className="text-3xl font-bold text-green-600">{stats.resolvedProblems}</div>
+                    <p className="text-sm text-gray-500 mt-1">Resolved</p>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-l-4 border-l-blue-500">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="p-3 bg-blue-100 rounded-lg">
+                        <TrendingUp className="h-6 w-6 text-blue-600" />
+                      </div>
+                      <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700">Rate</Badge>
+                    </div>
+                    <div className="text-3xl font-bold text-blue-600">
+                      {stats.totalProblems > 0 ? Math.round((stats.resolvedProblems / stats.totalProblems) * 100) : 0}%
+                    </div>
+                    <p className="text-sm text-gray-500 mt-1">Resolution Rate</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Problem Category Breakdown */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <BarChart3 className="h-5 w-5" />
+                      Problems by Category
+                    </CardTitle>
+                    <CardDescription>Distribution of reported issues by category</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-80">
+                      <Bar data={problemChartData} options={chartOptions} />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Target className="h-5 w-5" />
+                      Resolution Status
+                    </CardTitle>
+                    <CardDescription>Current problem resolution breakdown</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-80 flex items-center justify-center">
+                      <div className="w-full max-w-sm">
+                        <Doughnut 
+                          data={{
+                            labels: ['Resolved', 'Unresolved'],
+                            datasets: [{
+                              data: [stats.resolvedProblems, stats.unresolvedProblems],
+                              backgroundColor: ['#10b981', '#f59e0b'],
+                              borderColor: ['#059669', '#d97706'],
+                              borderWidth: 2,
+                            }]
+                          }}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: true,
+                            plugins: {
+                              legend: {
+                                position: 'bottom',
+                                labels: {
+                                  padding: 20,
+                                  font: { size: 12 }
+                                }
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Problem Insights */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Activity className="h-5 w-5" />
+                    Problem Management Insights
+                  </CardTitle>
+                  <CardDescription>Key metrics and actionable insights for problem resolution</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Resolution Performance */}
+                    <div className="p-4 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg border border-green-100">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="p-2 bg-green-100 rounded-lg">
+                          <Target className="h-5 w-5 text-green-600" />
+                        </div>
+                        <h4 className="font-semibold text-green-900">Resolution Performance</h4>
+                      </div>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Success Rate:</span>
+                          <span className="font-bold text-green-700">
+                            {stats.totalProblems > 0 ? Math.round((stats.resolvedProblems / stats.totalProblems) * 100) : 0}%
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Completed:</span>
+                          <span className="font-bold text-green-700">{stats.resolvedProblems}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Status:</span>
+                          <Badge variant="outline" className="text-xs bg-green-100 text-green-700 border-green-300">
+                            {stats.resolvedProblems >= stats.totalProblems * 0.8 ? 'Excellent' : 'Good'}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Pending Issues */}
+                    <div className="p-4 bg-gradient-to-br from-orange-50 to-amber-50 rounded-lg border border-orange-100">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="p-2 bg-orange-100 rounded-lg">
+                          <Clock className="h-5 w-5 text-orange-600" />
+                        </div>
+                        <h4 className="font-semibold text-orange-900">Pending Attention</h4>
+                      </div>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Unresolved:</span>
+                          <span className="font-bold text-orange-700">{stats.unresolvedProblems}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Priority:</span>
+                          <Badge variant="outline" className="text-xs bg-orange-100 text-orange-700 border-orange-300">
+                            {stats.unresolvedProblems > 10 ? 'High' : 'Normal'}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Action:</span>
+                          <span className="text-xs text-orange-700 font-medium">
+                            {stats.unresolvedProblems > 10 ? 'Review Required' : 'On Track'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* System Health */}
+                    <div className="p-4 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg border border-blue-100">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="p-2 bg-blue-100 rounded-lg">
+                          <Activity className="h-5 w-5 text-blue-600" />
+                        </div>
+                        <h4 className="font-semibold text-blue-900">System Health</h4>
+                      </div>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Total Reports:</span>
+                          <span className="font-bold text-blue-700">{stats.totalProblems}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Health Score:</span>
+                          <span className="font-bold text-blue-700">
+                            {stats.totalProblems > 0 ? Math.round((stats.resolvedProblems / stats.totalProblems) * 100) : 100}/100
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Status:</span>
+                          <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700 border-blue-300">
+                            {stats.unresolvedProblems < 5 ? 'Healthy' : 'Monitoring'}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Recommendations */}
+                  {stats.unresolvedProblems > 5 && (
+                    <div className="mt-6 p-4 bg-amber-50 rounded-lg border border-amber-200">
+                      <div className="flex items-start gap-3">
+                        <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5" />
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-amber-900 mb-2">⚠️ Attention Required</h4>
+                          <p className="text-sm text-amber-700 mb-3">
+                            There are {stats.unresolvedProblems} unresolved problems that need attention. 
+                            Consider reviewing and prioritizing critical issues for faster resolution.
+                          </p>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="bg-white hover:bg-amber-50 text-amber-900 border-amber-300"
+                            onClick={() => window.location.href = '/problems'}
+                          >
+                            <FileText className="h-4 w-4 mr-2" />
+                            View Problem Dashboard
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Success Message */}
+                  {stats.unresolvedProblems <= 5 && stats.totalProblems > 0 && (
+                    <div className="mt-6 p-4 bg-green-50 rounded-lg border border-green-200">
+                      <div className="flex items-start gap-3">
+                        <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
+                        <div>
+                          <h4 className="font-semibold text-green-900 mb-1">🎉 Great Work!</h4>
+                          <p className="text-sm text-green-700">
+                            Problem resolution is on track. Keep up the excellent service quality!
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
         </Tabs>
 

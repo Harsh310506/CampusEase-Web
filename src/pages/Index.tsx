@@ -6,6 +6,8 @@ import FeatureCard from '@/components/FeatureCard';
 import UpcomingEvents from '@/components/UpcomingEvents';
 import QuickLinks from '@/components/QuickLinks';
 import Announcements from '@/components/Announcements';
+import AnnouncementDisplay from '@/components/AnnouncementDisplay';
+import { useUser } from '@/UserContext';
 import { 
   CalendarDays, 
   BookOpen, 
@@ -45,6 +47,8 @@ import App from '../App';
 
 
 const Index = () => {
+  const { userData } = useUser();
+  
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
@@ -106,6 +110,11 @@ const Index = () => {
         {/* Dashboard Preview */}
         <section className="py-12 bg-gray-50">
           <div className="container mx-auto px-4 md:px-6">
+            {/* Professional Announcements Section */}
+            <div className="mb-12">
+              <AnnouncementDisplay userRole={userData?.role || 'all'} maxDisplay={3} />
+            </div>
+            
             <h2 className="text-2xl md:text-3xl font-bold text-center mb-10">
               Stay Updated With Your Dashboard
             </h2>

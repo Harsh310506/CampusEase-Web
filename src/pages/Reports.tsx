@@ -11,6 +11,15 @@ import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { mlService } from '@/services/mlService';
 import { useUser } from '@/UserContext';
+import { fetchReportFieldConfigs, type ReportFieldConfig } from '@/services/reportConfigService';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 const Reports = () => {
   const { toast } = useToast();
@@ -19,27 +28,51 @@ const Reports = () => {
   const [isTraining, setIsTraining] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldConfigs, setFieldConfigs] = useState<ReportFieldConfig[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [formData, setFormData] = useState({
-    Problem_Category: '',
-    Reporter_Type: '',
-    Location: '',
-    class_No: '',
-    Impact_Scope: '',
-    Occurrence_Pattern: '',
+  const [formData, setFormData] = useState<Record<string, any>>({
     description: '',
-    attachment: null as File | null,
+    attachment: null,
   });
 
   const [locationType, setLocationType] = useState('');
 
   useEffect(() => {
     checkModelStatus();
+    loadFieldConfigurations();
   }, []);
 
   const checkModelStatus = async () => {
     const isHealthy = await mlService.checkHealth();
     setModelStatus(isHealthy ? 'active' : 'error');
+  };
+
+  const loadFieldConfigurations = async () => {
+    try {
+      setLoading(true);
+      const configs = await fetchReportFieldConfigs();
+      setFieldConfigs(configs);
+      
+      // Initialize formData with all field names
+      const initialData: Record<string, any> = {
+        description: '',
+        attachment: null,
+      };
+      configs.forEach(config => {
+        initialData[config.field_name] = '';
+      });
+      setFormData(initialData);
+    } catch (error) {
+      console.error('Error loading field configurations:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load form configurations',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -57,6 +90,14 @@ const Reports = () => {
       });
       if (name === 'Location') setLocationType(value);
     }
+  };
+
+  const handleSelectChange = (name: string, value: string) => {
+    setFormData({
+      ...formData,
+      [name]: value,
+    });
+    if (name === 'Location') setLocationType(value);
   };
 
   const trainModel = async (useSynthetic = false) => {
@@ -103,17 +144,28 @@ const Reports = () => {
   };
 
   const validateForm = () => {
-    const requiredFields = ['Problem_Category', 'Reporter_Type', 'Location', 'Impact_Scope', 'Occurrence_Pattern', 'description'];
+    const requiredFields = fieldConfigs.filter(config => config.is_required && config.is_active);
+    
     for (const field of requiredFields) {
-      if (!formData[field as keyof typeof formData]) {
+      if (!formData[field.field_name]) {
         toast({
           title: 'Validation Error',
-          description: `Please fill in the ${field.replace('_', ' ')} field`,
+          description: `Please fill in the ${field.field_label} field`,
           variant: 'destructive',
         });
         return false;
       }
     }
+    
+    if (!formData.description) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please provide a description',
+        variant: 'destructive',
+      });
+      return false;
+    }
+    
     return true;
   };
 
@@ -158,48 +210,58 @@ const Reports = () => {
       
       // Get priority prediction from ML model if it's active
       if (modelStatus === 'active') {
-        prediction = await mlService.predictPriority({
-          Problem_Category: formData.Problem_Category,
-          Reporter_Type: formData.Reporter_Type,
-          Location: formData.Location,
-          Impact_Scope: formData.Impact_Scope,
-          Occurrence_Pattern: formData.Occurrence_Pattern,
+        const predictionData: Record<string, any> = {
           description: formData.description,
+        };
+        
+        // Add dynamic fields for prediction
+        fieldConfigs.forEach(config => {
+          if (config.is_active) {
+            predictionData[config.field_name] = formData[config.field_name] || '';
+          }
         });
+        
+        prediction = await mlService.predictPriority(predictionData);
       }
+
+      const reportData: any = {
+        description: descriptionJson,
+        images: imageUrl,
+        priority_level: prediction.priority_level,
+        priority_text: prediction.priority_text,
+        reporter_id: userData.user_id,
+      };
+
+      // Add all dynamic fields from configuration
+      fieldConfigs.forEach(config => {
+        if (config.is_active) {
+          const value = formData[config.field_name];
+          // Handle class_No specifically as it needs to be a number
+          if (config.field_name === 'class_No' && value) {
+            reportData[config.field_name] = parseInt(value, 10);
+          } else {
+            reportData[config.field_name] = value || null;
+          }
+        }
+      });
   
       const { error: insertError } = await supabase
         .from('report')
-        .insert([
-          {
-            Problem_Category: formData.Problem_Category,
-            Reporter_Type: formData.Reporter_Type,
-            Location: formData.Location,
-            class_No: classNo,
-            Impact_Scope: formData.Impact_Scope,
-            Occurrence_Pattern: formData.Occurrence_Pattern,
-            description: descriptionJson,
-            images: imageUrl,
-            priority_level: prediction.priority_level,
-            priority_text: prediction.priority_text,
-            reporter_id: userData.user_id,
-          },
-        ]);
+        .insert([reportData]);
   
       if (insertError) {
         throw new Error(`Failed to insert report: ${insertError.message}`);
       }
   
-      setFormData({
-        Problem_Category: '',
-        Reporter_Type: '',
-        Location: '',
-        class_No: '',
-        Impact_Scope: '',
-        Occurrence_Pattern: '',
+      // Reset form
+      const resetData: Record<string, any> = {
         description: '',
         attachment: null,
+      };
+      fieldConfigs.forEach(config => {
+        resetData[config.field_name] = '';
       });
+      setFormData(resetData);
       setLocationType('');
       toast({ title: 'Success', description: 'Report submitted successfully!' });
     } catch (error) {
@@ -269,118 +331,112 @@ const Reports = () => {
                 <CardDescription>Fill the form to report an issue on campus.</CardDescription>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handleSubmitReport} className="space-y-4">
+                {loading ? (
+                  <div className="text-center py-8">Loading form...</div>
+                ) : (
+                  <form onSubmit={handleSubmitReport} className="space-y-4">
+                    {/* Render dynamic fields sorted by display_order */}
+                    {fieldConfigs
+                      .filter(config => config.is_active)
+                      .sort((a, b) => a.display_order - b.display_order)
+                      .map(config => (
+                        <div key={config.id}>
+                          <Label htmlFor={config.field_name}>
+                            {config.field_label}
+                            {config.is_required && <span className="text-red-500">*</span>}
+                          </Label>
+                          
+                          {config.field_type === 'text' && (
+                            <Input
+                              id={config.field_name}
+                              name={config.field_name}
+                              value={formData[config.field_name] || ''}
+                              onChange={handleChange}
+                              placeholder={`Enter ${config.field_label}`}
+                              required={config.is_required}
+                            />
+                          )}
+                          
+                          {config.field_type === 'number' && (
+                            <Input
+                              id={config.field_name}
+                              name={config.field_name}
+                              type="number"
+                              value={formData[config.field_name] || ''}
+                              onChange={handleChange}
+                              placeholder={`Enter ${config.field_label}`}
+                              required={config.is_required}
+                            />
+                          )}
+                          
+                          {config.field_type === 'textarea' && (
+                            <Textarea
+                              id={config.field_name}
+                              name={config.field_name}
+                              value={formData[config.field_name] || ''}
+                              onChange={handleChange}
+                              placeholder={`Enter ${config.field_label}`}
+                              required={config.is_required}
+                              rows={4}
+                            />
+                          )}
+                          
+                          {config.field_type === 'select' && config.options && (
+                            <Select
+                              value={formData[config.field_name] || ''}
+                              onValueChange={(value) => handleSelectChange(config.field_name, value)}
+                              required={config.is_required}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder={`Select ${config.field_label}`} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {config.options.map((option, idx) => (
+                                  <SelectItem key={idx} value={option}>
+                                    {option}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                          
+                          {/* Show conditional field for class/lab number */}
+                          {config.field_name === 'Location' && 
+                           formData[config.field_name] && 
+                           ['Class', 'Lab', 'Hall', 'Institute'].includes(formData[config.field_name]) && (
+                            <div className="mt-2">
+                              <Label htmlFor="class_No">{formData[config.field_name]} Number</Label>
+                              <Input
+                                id="class_No"
+                                name="class_No"
+                                value={formData.class_No || ''}
+                                onChange={handleChange}
+                                placeholder={`Enter ${formData[config.field_name]} Number`}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      ))}
                   
                   <div>
-                    <label className="text-sm font-medium">Problem Category*</label>
-                    <select 
-                      name="Problem_Category" 
-                      value={formData.Problem_Category}
-                      onChange={handleChange} 
-                      className="w-full p-2 border rounded"
-                    >
-                      <option value="">-- Select --</option>
-                      <option value="Infrastructure">Infrastructure</option>
-                      <option value="IT/Technical">IT/Technical</option>
-                      <option value="Academic">Academic</option>
-                      <option value="Administrative">Administrative</option>
-                      <option value="Safety/Security">Safety/Security</option>
-                      <option value="Maintenance">Maintenance</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium">Reporter Type*</label>
-                    <select 
-                      name="Reporter_Type" 
-                      value={formData.Reporter_Type}
-                      onChange={handleChange} 
-                      className="w-full p-2 border rounded"
-                    >
-                      <option value="">-- Select --</option>
-                      <option value="Student">Student</option>
-                      <option value="Faculty">Faculty</option>
-                      <option value="Admin">Admin</option>
-                      <option value="Visitor">Visitor</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium">Location*</label>
-                    <select 
-                      name="Location" 
-                      value={formData.Location}
-                      onChange={handleChange} 
-                      className="w-full p-2 border rounded"
-                    >
-                      <option value="">-- Select --</option>
-                      <option value="Class">Class</option>
-                      <option value="Lab">Lab</option>
-                      <option value="Center Square">Center Square</option>
-                      <option value="Hall">Hall</option>
-                      <option value="Institute">Institute</option>
-                    </select>
-                  </div>
-
-                  {(locationType === 'Class' || locationType === 'Lab' || locationType === 'Hall' || locationType === 'Institute') && (
-                    <div>
-                      <label className="text-sm font-medium">
-                        {locationType} Number
-                      </label>
-                      <Input
-                        name="class_No"
-                        value={formData.class_No}
-                        onChange={handleChange}
-                        placeholder={`Enter ${locationType} Number`}
-                      />
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="text-sm font-medium">Impact Scope*</label>
-                    <select 
-                      name="Impact_Scope" 
-                      value={formData.Impact_Scope}
-                      onChange={handleChange} 
-                      className="w-full p-2 border rounded"
-                    >
-                      <option value="">-- Select --</option>
-                      <option value="Single person affected">Single person affected</option>
-                      <option value="Whole class affected">Whole class affected</option>
-                      <option value="Everyone affected">Everyone affected</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium">Occurrence Pattern*</label>
-                    <select 
-                      name="Occurrence_Pattern" 
-                      value={formData.Occurrence_Pattern}
-                      onChange={handleChange} 
-                      className="w-full p-2 border rounded"
-                    >
-                      <option value="">-- Select --</option>
-                      <option value="First occurrence">First occurrence</option>
-                      <option value="Recurring issue">Recurring issue</option>
-                      <option value="Daily">Daily</option>
-                      <option value="Weekly">Weekly</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium">Problem Description*</label>
+                    <Label htmlFor="description">
+                      Problem Description<span className="text-red-500">*</span>
+                    </Label>
                     <Textarea
+                      id="description"
                       name="description"
-                      value={formData.description}
+                      value={formData.description || ''}
                       onChange={handleChange}
-                      placeholder="Describe the issue..."
+                      placeholder="Describe the issue in detail..."
                       rows={4}
+                      required
                     />
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium">Attachment (Optional)</label>
+                    <Label htmlFor="attachment">Attachment (Optional)</Label>
                     <Input 
+                      id="attachment"
                       type="file" 
                       name="attachment" 
                       onChange={handleChange as any} 
@@ -391,7 +447,7 @@ const Reports = () => {
                   <div className="flex justify-end">
                     <Button 
                       type="submit" 
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || loading}
                       className="flex items-center gap-2"
                     >
                       {isSubmitting && <RefreshCw className="h-4 w-4 animate-spin" />}
@@ -399,6 +455,7 @@ const Reports = () => {
                     </Button>
                   </div>
                 </form>
+                )}
               </CardContent>
             </Card>
           </div>

@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-
-const subjects = ['DCN', 'DAA', 'Python Programming'];
+import { fetchSubjectsByDepartmentAndSemester, type Subject } from '@/services/subjectService';
+import { useToast } from '@/hooks/use-toast';
 
 const units = ['Unit 1', 'Unit 2', 'Unit 3', 'Unit 4', 'Unit 5'];
 
@@ -23,15 +23,47 @@ const dummyLinks: Record<string, Record<string, string>> = {
 };
 
 const sam_4 = () => {
+  const { toast } = useToast();
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [selectedSubject, setSelectedSubject] = useState<string | null>(null);
 
-  const handlePreviousYearPapers = (type: string, subject: string) => {
-    alert(`${type} - ${subject}`);
+  useEffect(() => {
+    loadSubjects();
+  }, []);
+
+  const loadSubjects = async () => {
+    try {
+      setLoading(true);
+      // Load subjects for Computer Science department, semester 4
+      const data = await fetchSubjectsByDepartmentAndSemester('CS', 4);
+      setSubjects(data);
+      if (data.length === 0) {
+        toast({
+          title: 'No Subjects',
+          description: 'No subjects found for semester 4. Please add subjects in Subject Management.',
+          variant: 'destructive'
+        });
+      }
+    } catch (error) {
+      console.error('Error loading subjects:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load subjects from database.',
+        variant: 'destructive'
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const getUnitUrl = (type: string, subject: string, unitIndex: number) => {
-    const baseUrl = dummyLinks[type]?.[subject];
+  const handlePreviousYearPapers = (type: string, subjectName: string) => {
+    alert(`${type} - ${subjectName}`);
+  };
+
+  const getUnitUrl = (type: string, subjectName: string, unitIndex: number) => {
+    const baseUrl = dummyLinks[type]?.[subjectName];
     if (!baseUrl) return '#';
     return `${baseUrl}/unit${unitIndex + 1}`;
   };
@@ -61,21 +93,35 @@ const sam_4 = () => {
                 {!selectedSubject ? (
                   <>
                     <h3 className="text-xl font-bold mb-4 text-campusteal-700">{selectedType} - Choose Subject</h3>
-                    <div className="grid gap-4">
-                      {subjects.map((subject, idx) => (
-                        <Card
-                          key={idx}
-                          className="p-4 cursor-pointer border hover:bg-campusteal-50 hover:border-campusteal-600 transition"
-                          onClick={() =>
-                            selectedType !== 'Previous Year Papers'
-                              ? setSelectedSubject(subject)
-                              : handlePreviousYearPapers(selectedType, subject)
-                          }
-                        >
-                          <h4 className="text-base font-medium text-campusteal-700">{subject}</h4>
-                        </Card>
-                      ))}
-                    </div>
+                    {loading ? (
+                      <p className="text-center text-gray-500 py-4">Loading subjects...</p>
+                    ) : subjects.length === 0 ? (
+                      <div className="text-center py-8">
+                        <p className="text-gray-500 mb-2">No subjects available for semester 4.</p>
+                        <p className="text-sm text-gray-400">Please add subjects in Subject Management.</p>
+                      </div>
+                    ) : (
+                      <div className="grid gap-4">
+                        {subjects.map((subject) => (
+                          <Card
+                            key={subject.id}
+                            className="p-4 cursor-pointer border hover:bg-campusteal-50 hover:border-campusteal-600 transition"
+                            onClick={() =>
+                              selectedType !== 'Previous Year Papers'
+                                ? setSelectedSubject(subject.name)
+                                : handlePreviousYearPapers(selectedType, subject.name)
+                            }
+                          >
+                            <h4 className="text-base font-medium text-campusteal-700">
+                              {subject.name} ({subject.code})
+                            </h4>
+                            {subject.description && (
+                              <p className="text-xs text-gray-500 mt-1">{subject.description}</p>
+                            )}
+                          </Card>
+                        ))}
+                      </div>
+                    )}
                   </>
                 ) : (
                   <>

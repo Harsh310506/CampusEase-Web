@@ -19,6 +19,12 @@ import {
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
+import { fetchAllSubjects, type Subject } from '@/services/subjectService';
+import { 
+  getFacultyClasses, 
+  getFacultySubjectsForClass,
+  getAllFacultySubjects 
+} from '@/services/facultyAssignmentService';
 import MassFaceRecognitionComponent from '@/components/MassFaceRecognitionComponent';
 import { 
   Calendar,
@@ -109,22 +115,18 @@ const Attendance: React.FC = () => {
   // Dynamic subjects from timetable
   const [timetableSubjects, setTimetableSubjects] = useState<string[]>([]);
 
-  // Predefined subjects and class types (fallback if timetable not set)
-  const defaultSubjects = [
-    'Data Structures',
-    'Database Management',
-    'Computer Networks',
-    'Operating Systems',
-    'Software Engineering',
-    'Web Development',
-    'Machine Learning',
-    'Computer Graphics',
-    'Mobile App Development',
-    'Cyber Security'
-  ];
+  // Database subjects (centralized from Subject Management)
+  const [databaseSubjects, setDatabaseSubjects] = useState<Subject[]>([]);
 
-  // Use timetable subjects if available, otherwise use default
-  const subjects = timetableSubjects.length > 0 ? timetableSubjects : defaultSubjects;
+  // Subjects specific to the selected class (for faculty)
+  const [classSpecificSubjects, setClassSpecificSubjects] = useState<Subject[]>([]);
+
+  // Use class-specific subjects if available and a class is selected
+  const subjects = timetableSubjects.length > 0 
+    ? timetableSubjects 
+    : (selectedClass && classSpecificSubjects.length > 0)
+      ? classSpecificSubjects.map(s => `${s.name} (${s.code})`)
+      : databaseSubjects.map(s => `${s.name} (${s.code})`);
 
   const classTypes = [
     'Theory',
@@ -148,41 +150,173 @@ const Attendance: React.FC = () => {
   useEffect(() => {
     fetchClasses();
     fetchFacultyTimetableSubjects();
+    loadDatabaseSubjects();
   }, []);
+
+  const loadDatabaseSubjects = async () => {
+    try {
+      if (!userData?.user_id) {
+        console.log('No user data available for loading subjects');
+        return;
+      }
+
+      // For faculty, load only their assigned subjects
+      if (userData.role === 'faculty') {
+        console.log('Loading assigned subjects for faculty:', userData.user_id);
+        
+        const assignedSubjects = await getAllFacultySubjects(userData.user_id);
+        
+        if (assignedSubjects.length === 0) {
+          toast({
+            title: 'No Subjects Assigned',
+            description: 'You have not been assigned to teach any subjects yet. Please contact admin.',
+            variant: 'default'
+          });
+          setDatabaseSubjects([]);
+          return;
+        }
+
+        // Map to Subject interface format
+        const subjectsFormatted = assignedSubjects.map(s => ({
+          id: s.subject_id,
+          code: s.subject_code,
+          name: s.subject_name,
+          description: s.description || '',
+          department: '', // Not available from assignment service
+          semester: 0, // Not available from assignment service
+          is_active: true,
+          created_at: '',
+          updated_at: ''
+        }));
+
+        console.log('Assigned subjects loaded:', subjectsFormatted);
+        setDatabaseSubjects(subjectsFormatted);
+      } else {
+        // For admin or other roles, load all subjects
+        const subjects = await fetchAllSubjects();
+        setDatabaseSubjects(subjects);
+        console.log('Loaded all subjects from database:', subjects.length);
+      }
+    } catch (error) {
+      console.error('Error loading subjects:', error);
+      toast({
+        title: 'Warning',
+        description: 'Could not load subjects from database.',
+        variant: 'destructive'
+      });
+    }
+  };
 
   // Only fetch students when class ID changes
   useEffect(() => {
     if (selectedClass?.class_id && fetchingStudents !== selectedClass.class_id) {
       fetchStudents(selectedClass.class_id);
+      // Also load subjects specific to this class for faculty
+      if (userData?.role === 'faculty' && userData.user_id) {
+        loadClassSpecificSubjects(userData.user_id, selectedClass.class_id);
+      }
     }
   }, [selectedClass?.class_id]); // Only depend on the class_id
+
+  const loadClassSpecificSubjects = async (facultyId: string, classId: string) => {
+    try {
+      console.log('Loading subjects for faculty', facultyId, 'and class', classId);
+      
+      const assignedSubjects = await getFacultySubjectsForClass(facultyId, classId);
+      
+      if (assignedSubjects.length === 0) {
+        toast({
+          title: 'No Subjects for This Class',
+          description: 'You are not assigned to teach any subjects for this class.',
+          variant: 'default'
+        });
+        setClassSpecificSubjects([]);
+        return;
+      }
+
+      // Map to Subject interface format
+      const subjectsFormatted = assignedSubjects.map(s => ({
+        id: s.subject_id,
+        code: s.subject_code,
+        name: s.subject_name,
+        description: s.description || '',
+        department: '',
+        semester: 0,
+        is_active: true,
+        created_at: '',
+        updated_at: ''
+      }));
+
+      console.log('Class-specific subjects loaded:', subjectsFormatted);
+      setClassSpecificSubjects(subjectsFormatted);
+    } catch (error) {
+      console.error('Error loading class-specific subjects:', error);
+      setClassSpecificSubjects([]);
+    }
+  };
 
   const fetchClasses = async () => {
     try {
       setLoading(true);
       
-      // Fetch classes first
-      const { data: classData, error: classError } = await supabase
-        .from('class_details')
-        .select('*')
-        .order('class_name');
-
-      if (classError) {
-        console.error('Error fetching class_details:', classError);
-        throw classError;
+      if (!userData?.user_id) {
+        console.log('No user data available');
+        return;
       }
 
-      console.log('Fetched classes:', classData);
+      // Check if user is faculty and fetch only their assigned classes
+      if (userData.role === 'faculty') {
+        console.log('Fetching assigned classes for faculty:', userData.user_id);
+        
+        const assignedClasses = await getFacultyClasses(userData.user_id);
+        
+        if (assignedClasses.length === 0) {
+          toast({
+            title: "No Classes Assigned",
+            description: "You have not been assigned to any classes yet. Please contact admin.",
+            variant: "default"
+          });
+          setClasses([]);
+          return;
+        }
 
-      // For now, just set classes with student_count as 0
-      // We'll get the exact count when needed
-      const classesWithCount = (classData || []).map(classDetail => ({
-        ...classDetail,
-        student_count: 0 // Will be updated when needed
-      }));
+        // Map the assigned classes to match ClassDetail interface
+        const classesWithDetails = assignedClasses.map(ac => ({
+          id: 0, // Will be filled from database if needed
+          class_id: ac.class_id,
+          class_name: ac.class_name,
+          department: ac.department,
+          semester: ac.semester,
+          academic_year: ac.academic_year,
+          institute: '', // Not available from assignment service
+          course_taken: '', // Not available from assignment service
+          student_count: Number(ac.subject_count) || 0
+        }));
 
-      console.log('Classes prepared:', classesWithCount);
-      setClasses(classesWithCount);
+        console.log('Assigned classes loaded:', classesWithDetails);
+        setClasses(classesWithDetails);
+      } else {
+        // For admin or other roles, fetch all classes
+        const { data: classData, error: classError } = await supabase
+          .from('class_details')
+          .select('*')
+          .order('class_name');
+
+        if (classError) {
+          console.error('Error fetching class_details:', classError);
+          throw classError;
+        }
+
+        console.log('Fetched all classes:', classData);
+
+        const classesWithCount = (classData || []).map(classDetail => ({
+          ...classDetail,
+          student_count: 0
+        }));
+
+        console.log('Classes prepared:', classesWithCount);
+        setClasses(classesWithCount);
+      }
     } catch (error) {
       console.error('Error fetching classes:', error);
       toast({

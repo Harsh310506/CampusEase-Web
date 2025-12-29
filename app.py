@@ -28,37 +28,88 @@ PRIORITY_LEVELS = {
     0: "Low"
 }
 
-# Define feature importance for each category
-CATEGORY_WEIGHTS = {
-    "Infrastructure": 2,
-    "IT/Technical": 2,
-    "Academic": 1,
-    "Administrative": 1,
-    "Safety/Security": 3,
-    "Maintenance": 2
-}
+# Global dictionaries for dynamic weights (will be loaded from database)
+CATEGORY_WEIGHTS = {}
+IMPACT_WEIGHTS = {}
+OCCURRENCE_WEIGHTS = {}
 
-IMPACT_WEIGHTS = {
-    "Single person affected": 1,
-    "Whole class affected": 2,
-    "Everyone affected": 3
-}
+def load_weights_from_database():
+    """Load weights dynamically from Supabase database"""
+    global CATEGORY_WEIGHTS, IMPACT_WEIGHTS, OCCURRENCE_WEIGHTS
+    
+    try:
+        # Load category weights
+        cat_response = supabase.table('category_weights').select('*').eq('is_active', True).execute()
+        if cat_response.data:
+            CATEGORY_WEIGHTS = {item['category']: item['weight'] for item in cat_response.data}
+            print(f"Loaded {len(CATEGORY_WEIGHTS)} category weights")
+        
+        # Load impact weights
+        impact_response = supabase.table('impact_weights').select('*').eq('is_active', True).execute()
+        if impact_response.data:
+            IMPACT_WEIGHTS = {item['impact_scope']: item['weight'] for item in impact_response.data}
+            print(f"Loaded {len(IMPACT_WEIGHTS)} impact weights")
+        
+        # Load occurrence weights
+        occ_response = supabase.table('occurrence_weights').select('*').eq('is_active', True).execute()
+        if occ_response.data:
+            OCCURRENCE_WEIGHTS = {item['occurrence_pattern']: item['weight'] for item in occ_response.data}
+            print(f"Loaded {len(OCCURRENCE_WEIGHTS)} occurrence weights")
+            
+        return True
+    except Exception as e:
+        print(f"Error loading weights from database: {e}")
+        # Fall back to default weights
+        CATEGORY_WEIGHTS = {
+            "Infrastructure": 2,
+            "IT/Technical": 2,
+            "Academic": 1,
+            "Administrative": 1,
+            "Safety/Security": 3,
+            "Maintenance": 2
+        }
+        IMPACT_WEIGHTS = {
+            "Single person affected": 1,
+            "Whole class affected": 2,
+            "Everyone affected": 3
+        }
+        OCCURRENCE_WEIGHTS = {
+            "First occurrence": 1,
+            "Recurring issue": 2,
+            "Daily": 3,
+            "Weekly": 2
+        }
+        return False
 
-OCCURRENCE_WEIGHTS = {
-    "First occurrence": 1,
-    "Recurring issue": 2,
-    "Daily": 3,
-    "Weekly": 2
-}
+def get_dynamic_field_options():
+    """Fetch dynamic field options from database"""
+    try:
+        response = supabase.table('report_field_config').select('*').eq('is_active', True).execute()
+        if response.data:
+            field_options = {}
+            for field in response.data:
+                if field['field_type'] in ['select', 'multiselect'] and field['options']:
+                    field_options[field['field_name']] = field['options']
+            return field_options
+        return {}
+    except Exception as e:
+        print(f"Error fetching field options: {e}")
+        return {}
 
 # Create a synthetic dataset for initial training
 def create_synthetic_dataset(num_samples=100):
-    """Create a synthetic dataset for training the model"""
+    """Create a synthetic dataset for training the model using dynamic categories"""
+    # Load current weights from database
+    load_weights_from_database()
+    
     categories = list(CATEGORY_WEIGHTS.keys())
-    reporter_types = ["Student", "Faculty", "Admin", "Visitor"]
-    locations = ["Class", "Lab", "Center Square", "Hall", "Institute"]
     impact_scopes = list(IMPACT_WEIGHTS.keys())
     occurrence_patterns = list(OCCURRENCE_WEIGHTS.keys())
+    
+    # Get dynamic field options
+    field_options = get_dynamic_field_options()
+    reporter_types = field_options.get('Reporter_Type', ["Student", "Faculty", "Admin", "Visitor"])
+    locations = field_options.get('Location', ["Class", "Lab", "Center Square", "Hall", "Institute"])
     
     synthetic_data = []
     
@@ -319,6 +370,9 @@ def update_report_priorities():
 @app.route('/train', methods=['POST'])
 def train_endpoint():
     """API endpoint to trigger model training"""
+    # Reload weights from database before training
+    load_weights_from_database()
+    
     use_synthetic = request.args.get('synthetic', 'false').lower() == 'true'
     
     if use_synthetic:
@@ -331,9 +385,38 @@ def train_endpoint():
     else:
         return jsonify({"status": "error", "message": "Model training failed"}), 500
 
+@app.route('/sync_weights', methods=['POST'])
+def sync_weights():
+    """Reload ML weights from database"""
+    try:
+        success = load_weights_from_database()
+        if success:
+            return jsonify({
+                "status": "success",
+                "message": "Weights reloaded from database successfully",
+                "weights": {
+                    "categories": CATEGORY_WEIGHTS,
+                    "impact": IMPACT_WEIGHTS,
+                    "occurrence": OCCURRENCE_WEIGHTS
+                }
+            })
+        else:
+            return jsonify({
+                "status": "error",
+                "message": "Failed to load weights from database"
+            }), 500
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+
 @app.route('/update_priorities', methods=['POST'])
 def update_priorities_endpoint():
     """API endpoint to update all report priorities"""
+    # Reload weights from database before updating priorities
+    load_weights_from_database()
+    
     count = update_report_priorities()
     return jsonify({"status": "success", "message": f"Updated {count} reports"})
 
@@ -358,6 +441,10 @@ def health_check():
     return jsonify({"status": "healthy"})
 
 if __name__ == '__main__':
+    # Load weights from database on startup
+    print("Loading weights from database...")
+    load_weights_from_database()
+    
     # Check if model exists, if not create it
     if not os.path.exists('priority_model.pkl'):
         print("No existing model found. Training new model...")

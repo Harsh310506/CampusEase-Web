@@ -21,6 +21,7 @@
   import MyReports from './pages/MyReports';
   import AdminPage from './pages/AdminPage';
   import DataAnalysis from './pages/DataAnalysis';
+  import SubjectManagement from './pages/SubjectManagement';
 import AcademicEve from './pages/academic_eve';
 import CareerEve from './pages/career_eve';
 import SocialEve from './pages/social_eve';
@@ -31,6 +32,10 @@ import ClassManagement from './pages/ClassManagement';
 import FacultyManagement from './pages/FacultyManagement';
 import FacultySchedule from './pages/FacultySchedule';
 import ViewAttendance from './pages/ViewAttendance';
+import FacultyClassAssignment from './pages/FacultyClassAssignment';
+import AnnouncementManagement from './pages/AnnouncementManagement';
+import ReportConfiguration from './pages/ReportConfiguration';
+import ServiceHeadDashboard from './pages/ServiceHeadDashboard';
   const queryClient = new QueryClient();
 
   const SessionRedirectHandler = () => {
@@ -68,7 +73,7 @@ import ViewAttendance from './pages/ViewAttendance';
 
   function ProblemsOrMyReports() {
     const { userData } = useUser();
-    if (userData?.role === 'admin') {
+    if (userData?.role === 'admin' || userData?.role === 'service_head') {
       return <ProblemDashboard />;
     } else {
       return <MyReports />;
@@ -87,6 +92,24 @@ import ViewAttendance from './pages/ViewAttendance';
   function AdminRoute({ children }) {
     const { userData } = useUser();
     if (userData?.role === 'admin') {
+      return children;
+    } else {
+      return <Navigate to="/Index" replace />;
+    }
+  }
+
+  function ServiceHeadRoute({ children }) {
+    const { userData } = useUser();
+    if (userData?.role === 'service_head') {
+      return children;
+    } else {
+      return <Navigate to="/Index" replace />;
+    }
+  }
+
+  function ServiceHeadOrAdminRoute({ children }) {
+    const { userData } = useUser();
+    if (userData?.role === 'service_head' || userData?.role === 'admin') {
       return children;
     } else {
       return <Navigate to="/Index" replace />;
@@ -125,6 +148,11 @@ import ViewAttendance from './pages/ViewAttendance';
             <Route path="/faculty-schedule" element={<FacultyRoute><FacultySchedule /></FacultyRoute>} />
             <Route path="/class-management" element={<AdminRoute><ClassManagement /></AdminRoute>} />
             <Route path="/faculty-management" element={<AdminRoute><FacultyManagement /></AdminRoute>} />
+            <Route path="/subject-management" element={<AdminRoute><SubjectManagement /></AdminRoute>} />
+            <Route path="/faculty-class-assignment" element={<AdminRoute><FacultyClassAssignment /></AdminRoute>} />
+            <Route path="/announcement-management" element={<AdminRoute><AnnouncementManagement /></AdminRoute>} />
+            <Route path="/report-configuration" element={<ServiceHeadRoute><ReportConfiguration /></ServiceHeadRoute>} />
+            <Route path="/service-head-dashboard" element={<ServiceHeadRoute><ServiceHeadDashboard /></ServiceHeadRoute>} />
             <Route path="/view-attendance" element={<ViewAttendance />} />
             <Route path="/data-analysis" element={<AdminRoute><DataAnalysis /></AdminRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

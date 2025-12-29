@@ -3,6 +3,7 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { supabase } from '@/supabase/supabaseClient';
 import { useUser } from '@/UserContext';
+import { fetchAllSubjects, type Subject } from '@/services/subjectService';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -78,6 +79,7 @@ const Resources = () => {
   const [resources, setResources] = useState<Resource[]>([]);
   const [pendingResources, setPendingResources] = useState<Resource[]>([]);
   const [myPendingResources, setMyPendingResources] = useState<Resource[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSubject, setSelectedSubject] = useState<string>('all');
@@ -95,27 +97,10 @@ const Resources = () => {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
 
-  // Subjects list
-  const subjects = [
-    'Data Structures',
-    'Database Management',
-    'Computer Networks',
-    'Operating Systems',
-    'Software Engineering',
-    'Web Development',
-    'Machine Learning',
-    'Computer Graphics',
-    'Mobile App Development',
-    'Cyber Security',
-    'Mathematics',
-    'Physics',
-    'Chemistry',
-    'Other',
-  ];
-
   const departments = ['IT', 'CE', 'CS', 'DIT', 'DCE', 'DCS'];
 
   useEffect(() => {
+    loadSubjects();
     fetchResources();
     if (userData?.role === 'admin') {
       fetchPendingResources();
@@ -124,6 +109,15 @@ const Resources = () => {
       fetchMyPendingResources();
     }
   }, [userData]);
+
+  const loadSubjects = async () => {
+    try {
+      const subjectsData = await fetchAllSubjects();
+      setSubjects(subjectsData);
+    } catch (error) {
+      console.error('Error loading subjects:', error);
+    }
+  };
 
   const fetchResources = async () => {
     try {
@@ -455,24 +449,24 @@ const Resources = () => {
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="subject">Subject *</Label>
-                      <Select
-                        value={uploadForm.subject}
-                        onValueChange={(value) => setUploadForm({ ...uploadForm, subject: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select subject" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {subjects.map((subject) => (
-                            <SelectItem key={subject} value={subject}>
-                              {subject}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="subject">Subject *</Label>
+                    <Select
+                      value={uploadForm.subject}
+                      onValueChange={(value) => setUploadForm({ ...uploadForm, subject: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select subject" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {subjects.map((subject) => (
+                          <SelectItem key={subject.id} value={subject.name}>
+                            {subject.name} ({subject.code})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                     <div className="space-y-2">
                       <Label htmlFor="department">Department</Label>
                       <Select
@@ -556,9 +550,10 @@ const Resources = () => {
                       <SelectValue placeholder="Filter by subject" />
                     </SelectTrigger>
                     <SelectContent>
-                      {uniqueSubjects.map((subject) => (
-                        <SelectItem key={subject} value={subject}>
-                          {subject === 'all' ? 'All Subjects' : subject}
+                      <SelectItem value="all">All Subjects</SelectItem>
+                      {subjects.map((subject) => (
+                        <SelectItem key={subject.id} value={subject.name}>
+                          {subject.name} ({subject.code})
                         </SelectItem>
                       ))}
                     </SelectContent>

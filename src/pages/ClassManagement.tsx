@@ -11,13 +11,21 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -53,9 +61,16 @@ import {
   School,
   FileSpreadsheet,
   Camera,
-  Eraser
+  Eraser,
+  Calendar
 } from 'lucide-react';
 import FaceUploadComponent from '@/components/FaceUploadComponent';
+import { 
+  exportClassAttendanceToExcel, 
+  getCurrentWeekDateRange, 
+  getPreviousWeekDateRange,
+  getCustomDateRange
+} from '@/services/attendanceService';
 
 interface ClassDetail {
   id: string;
@@ -209,7 +224,12 @@ const ClassManagement: React.FC = () => {
           .select('day_index, slot_index, course, professor, room')
           .eq('class_id', classId)
           .order('day_index, slot_index');
-        data = fallback.data;
+        data = (fallback.data || []).map(row => ({
+          ...row,
+          is_lab: false,
+          batch_number: null,
+          lab_id: null
+        }));
         error = fallback.error;
       }
 
@@ -542,6 +562,47 @@ const ClassManagement: React.FC = () => {
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to delete face embeddings. Make sure the face recognition API is running.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownloadAttendance = async (classDetail: ClassDetail, weekOffset: number = 0) => {
+    try {
+      setLoading(true);
+
+      let dateRange;
+      if (weekOffset === 0) {
+        dateRange = getCurrentWeekDateRange();
+      } else if (weekOffset === 1) {
+        dateRange = getPreviousWeekDateRange();
+      } else {
+        dateRange = getCustomDateRange(weekOffset);
+      }
+
+      toast({
+        title: "Generating Report...",
+        description: `Preparing attendance report for ${classDetail.class_name}`,
+      });
+
+      await exportClassAttendanceToExcel(
+        classDetail.class_id,
+        classDetail.class_name,
+        dateRange.startDate,
+        dateRange.endDate
+      );
+
+      toast({
+        title: "Success",
+        description: `Attendance report downloaded for ${classDetail.class_name}`,
+      });
+    } catch (error) {
+      console.error('Error downloading attendance:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to download attendance report",
         variant: "destructive"
       });
     } finally {
@@ -1590,6 +1651,38 @@ const ClassManagement: React.FC = () => {
                             <Edit className="h-4 w-4 mr-1" />
                             Edit
                           </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button size="sm" variant="outline" className="text-green-600 hover:text-green-700">
+                                <Calendar className="h-4 w-4 mr-1" />
+                                Download Attendance
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Select Week</DropdownMenuLabel>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => handleDownloadAttendance(classItem, 0)}>
+                                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                                Current Week
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleDownloadAttendance(classItem, 1)}>
+                                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                                Previous Week
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleDownloadAttendance(classItem, 2)}>
+                                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                                2 Weeks Ago
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleDownloadAttendance(classItem, 3)}>
+                                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                                3 Weeks Ago
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleDownloadAttendance(classItem, 4)}>
+                                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                                4 Weeks Ago
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button size="sm" variant="outline" className="text-orange-600 hover:text-orange-700">
