@@ -450,5 +450,9 @@ if __name__ == '__main__':
         print("No existing model found. Training new model...")
         train_model_with_dataset()
     
-    # Start the Flask app on localhost
-    app.run(host='localhost', port=5000, debug=True) 
+    # Get port from environment variable (Render sets PORT automatically)
+    port = int(os.getenv('PORT', 5000))
+    debug_mode = os.getenv('FLASK_ENV', 'production') != 'production'
+    
+    # Start the Flask app
+    app.run(host='0.0.0.0', port=port, debug=debug_mode) 

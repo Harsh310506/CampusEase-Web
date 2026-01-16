@@ -3,8 +3,11 @@ FastAPI Backend for Face Recognition Integration with Campus Ease
 Provides endpoints for training faces, mass recognition, and attendance management
 """
 
-import asyncio
+# Disable albumentations update check to prevent startup delays
 import os
+os.environ['NO_ALBUMENTATIONS_UPDATE'] = '1'
+
+import asyncio
 from contextlib import asynccontextmanager
 from typing import List, Dict, Optional
 from fastapi import FastAPI, File, UploadFile, HTTPException, Depends, Form
@@ -75,14 +78,7 @@ app = FastAPI(
 # Enable CORS for React frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000", 
-        "http://localhost:5173", 
-        "http://localhost:8080",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:8080"
-    ],  # Add your frontend URLs
+    allow_origins=["http://localhost:3000","http://localhost:5173","http://localhost:8080","http://localhost:8081","http://127.0.0.1:3000","http://127.0.0.1:5173","http://127.0.0.1:8080","http://127.0.0.1:8081"],  # Add your frontend URLs
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -704,10 +700,16 @@ async def delete_class_face_embeddings(class_id: str):
         raise HTTPException(status_code=500, detail=f"Failed to delete embeddings: {str(e)}")
 
 if __name__ == "__main__":
+    import uvicorn
+    
+    # Get port from environment variable (Render sets PORT automatically)
+    port = int(os.getenv("PORT", 8000))
+    reload = os.getenv("API_RELOAD", "False").lower() == "true"
+    
     uvicorn.run(
         "face_recognition_api:app",
         host="0.0.0.0",
-        port=8000,
-        reload=True,
+        port=port,
+        reload=reload,
         log_level="info"
     )
