@@ -34,8 +34,23 @@ class FaceEncoder:
         self.detection_size = detection_size
         
         # Select provider based on environment setup
-        providers = ['CUDAExecutionProvider'] if self.use_gpu else ['CPUExecutionProvider']
-        provider_options = [{'device_id': 0, 'arena_extend_strategy': 'kNextPowerOfTwo', 'gpu_mem_limit': self.gpu_memory_limit, 'cudnn_conv_algo_search': 'EXHAUSTIVE', 'do_copy_in_default_stream': True}] if self.use_gpu else [{}]
+        if self.use_gpu:
+            providers = ['CUDAExecutionProvider']
+            provider_options = [{
+                'device_id': 0, 
+                'arena_extend_strategy': 'kNextPowerOfTwo', 
+                'gpu_mem_limit': self.gpu_memory_limit, 
+                'cudnn_conv_algo_search': 'EXHAUSTIVE', 
+                'do_copy_in_default_stream': True
+            }]
+        else:
+            providers = ['CPUExecutionProvider']
+            # Strict memory limits for Render Free Tier (512MB RAM)
+            provider_options = [{
+                'intra_op_num_threads': 1,
+                'inter_op_num_threads': 1,
+                'arena_extend_strategy': 'kSameAsRequested',
+            }]
         
         # Switch to the lighter buffalo_s model to avoid exceeding the 512MB RAM limit on Render
         self.app = insightface.app.FaceAnalysis(
