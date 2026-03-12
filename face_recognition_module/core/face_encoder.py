@@ -22,30 +22,29 @@ class FaceEncoder:
     
     def __init__(self, gpu_memory_limit: int = 2048, detection_size: tuple = (640, 640)):
         """
-        Initialize Face Encoder with GPU or CPU optimization
+        Initialize Face Encoder with GPU optimization
         
         Args:
             gpu_memory_limit: GPU memory limit in MB (default 2048 for RTX 3050)
             detection_size: Detection resolution (default 640x640)
         """
-        import os
-        self.use_gpu = str(os.getenv("USE_GPU", "False")).lower() == "true"
         self.gpu_memory_limit = gpu_memory_limit * 1024 * 1024  # Convert to bytes
         self.detection_size = detection_size
         
-        # Select provider based on environment setup
-        providers = ['CUDAExecutionProvider'] if self.use_gpu else ['CPUExecutionProvider']
-        provider_options = [{'device_id': 0, 'arena_extend_strategy': 'kNextPowerOfTwo', 'gpu_mem_limit': self.gpu_memory_limit, 'cudnn_conv_algo_search': 'EXHAUSTIVE', 'do_copy_in_default_stream': True}] if self.use_gpu else [{}]
-        
-        # Switch to the lighter buffalo_s model to avoid exceeding the 512MB RAM limit on Render
+        # GPU-only configuration
         self.app = insightface.app.FaceAnalysis(
-            name='buffalo_s',
-            providers=providers,
-            provider_options=provider_options
+            providers=['CUDAExecutionProvider'],
+            provider_options=[{
+                'device_id': 0,
+                'arena_extend_strategy': 'kNextPowerOfTwo',
+                'gpu_mem_limit': self.gpu_memory_limit,
+                'cudnn_conv_algo_search': 'EXHAUSTIVE',
+                'do_copy_in_default_stream': True,
+            }]
         )
         
-        self.app.prepare(ctx_id=0 if self.use_gpu else -1, det_size=self.detection_size)
-        logger.info(f"🚀 FaceEncoder initialized - GPU: {self.use_gpu}, Memory Limit: {gpu_memory_limit}MB, Size: {detection_size}")
+        self.app.prepare(ctx_id=0, det_size=self.detection_size)
+        logger.info(f"🚀 GPU FaceEncoder initialized - Memory: {gpu_memory_limit}MB, Size: {detection_size}")
     
     def l2_normalize(self, embedding: np.ndarray) -> np.ndarray:
         """L2 normalize embedding vector"""
