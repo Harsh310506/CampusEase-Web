@@ -24,4 +24,22 @@ dist-ssr
 *.sw?
 
 # Python
+venv/
 myenv/
+__pycache__/
+*.pyc
+
+# ML artifacts (regenerated at runtime)
+*.pkl
+synthetic_training_data.csv
+model_metrics.txt
+
+# Extra files
+_extras/
+
+# Environment files (keep .env.example if you make one)
+.env
+.env.face_recognition
+
+# Binary lock file
+bun.lockb
