@@ -7,13 +7,6 @@ Provides endpoints for training faces, mass recognition, and attendance manageme
 import os
 os.environ['NO_ALBUMENTATIONS_UPDATE'] = '1'
 
-# Strict memory and thread limitations for Render Free Tier (512MB RAM constraints)
-os.environ['OMP_NUM_THREADS'] = '1'
-os.environ['OPENBLAS_NUM_THREADS'] = '1'
-os.environ['MKL_NUM_THREADS'] = '1'
-os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
-os.environ['NUMEXPR_NUM_THREADS'] = '1'
-
 import asyncio
 from contextlib import asynccontextmanager
 from typing import List, Dict, Optional

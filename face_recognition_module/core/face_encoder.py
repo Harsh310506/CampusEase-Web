@@ -55,7 +55,6 @@ class FaceEncoder:
         # Switch to the lighter buffalo_s model to avoid exceeding the 512MB RAM limit on Render
         self.app = insightface.app.FaceAnalysis(
             name='buffalo_s',
-            allowed_modules=['detection', 'recognition'],
             providers=providers,
             provider_options=provider_options
         )
