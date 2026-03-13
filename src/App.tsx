@@ -7,6 +7,7 @@
   import { useUser } from './UserContext';
 
   import Login from "./pages/Login";
+  import LandingPage from "./pages/LandingPage";
   import SignupForm from "./pages/signuph";
   import Index from "./pages/Index";
   import Schedule from "./pages/Schedule";
@@ -44,9 +45,10 @@ import ServiceHeadDashboard from './pages/ServiceHeadDashboard';
 
     useEffect(() => {
       const isLoggedIn = sessionStorage.getItem("isLoggedIn") === "true";
+      const publicPaths = ["/", "/login", "/signup"];
 
-      // If logged in, redirect to /Index when trying to access login/signup
-      if (isLoggedIn && (location.pathname === "/" || location.pathname === "/signup")) {
+      // If logged in, redirect away from public pages to /Index
+      if (isLoggedIn && publicPaths.includes(location.pathname)) {
         navigate("/Index", { replace: true });
 
         // Replace current history entry with /Index to prevent going back
@@ -54,16 +56,13 @@ import ServiceHeadDashboard from './pages/ServiceHeadDashboard';
 
         // Ensure that whenever the back button is clicked, the user is redirected to /Index
         window.onpopstate = () => {
-          // Push the same /Index state back to the history so user can't go back
           window.history.pushState(null, "", "/Index");
-          // Manually navigate to the /Index route to ensure user stays there
           navigate("/Index", { replace: true });
         };
-
       }
       
-      // If not logged in and trying to access protected routes, redirect to login
-      if (!isLoggedIn && location.pathname !== "/" && location.pathname !== "/signup") {
+      // If not logged in and trying to access protected routes, redirect to landing
+      if (!isLoggedIn && !publicPaths.includes(location.pathname)) {
         navigate("/", { replace: true });
       }
     }, [navigate, location]);
@@ -126,8 +125,8 @@ import ServiceHeadDashboard from './pages/ServiceHeadDashboard';
         <SessionRedirectHandler />
 
         <Routes>
-            {/* <Route path="/" element={<Index />} /> */}
-            <Route path="/" element={<Login/>} />
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/login" element={<Login/>} />
             <Route path="/signup" element={<SignupForm />} />
             <Route path="/Index" element={<Index />} />
             <Route path="/schedule" element={<Schedule />} />
